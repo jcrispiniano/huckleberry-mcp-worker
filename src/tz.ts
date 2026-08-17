@@ -49,7 +49,10 @@ function utcOffsetMs(tz: string, at: Date): number {
  * (`-utcoffset/60`): positive for UTC- zones. America/Sao_Paulo -> 180.
  */
 export function offsetMinutes(tz: string, at: Date = new Date()): number {
-  return -utcOffsetMs(tz, at) / 60000;
+  // Rounded because `utcOffsetMs` compares a second-precision wall clock
+  // against a millisecond instant, which otherwise leaves sub-minute drift
+  // (180.00765 instead of 180). Real UTC offsets are always whole minutes.
+  return Math.round(-utcOffsetMs(tz, at) / 60000);
 }
 
 /**
