@@ -26,6 +26,17 @@ export interface Env {
   HUCKLEBERRY_PASSWORD: string;
   HUCKLEBERRY_TIMEZONE?: string;
   MCP_AUTH_TOKEN: string;
+  /**
+   * Optional second token accepted in the URL path, for clients that cannot
+   * send a custom header — claude.ai custom connectors take a URL and OAuth
+   * credentials, with no field for `Authorization`.
+   *
+   * It is deliberately separate from MCP_AUTH_TOKEN: request paths end up in
+   * access logs and history in a way that headers do not, so a leak here should
+   * not compromise the header credential, and this one can be rotated alone.
+   * Falls back to MCP_AUTH_TOKEN when unset.
+   */
+  MCP_URL_TOKEN?: string;
 }
 
 /** Length-independent comparison, so a wrong token leaks nothing by timing. */
@@ -89,7 +100,9 @@ export default {
 
     if (url.pathname === "/" && request.method === "GET") {
       return new Response(
-        "huckleberry-mcp is running. MCP endpoint: POST /mcp (bearer token required).\n",
+        "huckleberry-mcp is running.\n" +
+          "MCP endpoint: POST /mcp with an Authorization: Bearer header,\n" +
+          "or POST /mcp/<token> for clients that cannot send headers.\n",
         { headers: { "Content-Type": "text/plain" } },
       );
     }
@@ -104,8 +117,25 @@ export default {
       );
     }
 
+    // A token in the path authenticates the request on its own. The handler
+    // only serves /mcp, so the request is rewritten to that route once the
+    // token checks out.
+    const pathToken = url.pathname.match(/^\/mcp\/(.+)$/)?.[1];
+    let authenticated = false;
+
+    if (pathToken) {
+      const expected = env.MCP_URL_TOKEN || env.MCP_AUTH_TOKEN;
+      if (!tokensMatch(decodeURIComponent(pathToken), expected)) {
+        return unauthorized();
+      }
+
+      authenticated = true;
+      url.pathname = "/mcp";
+      request = new Request(url, request);
+    }
+
     // Preflight carries no Authorization header; let the handler answer it.
-    if (request.method !== "OPTIONS") {
+    if (!authenticated && request.method !== "OPTIONS") {
       const header = request.headers.get("Authorization") ?? "";
       const token = header.startsWith("Bearer ") ? header.slice(7) : "";
 

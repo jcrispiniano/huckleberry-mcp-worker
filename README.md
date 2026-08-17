@@ -97,6 +97,29 @@ Authorization: Bearer <MCP_AUTH_TOKEN>
 Requests without a valid token get a 401 before any Huckleberry call is made.
 Generate a token with something like `openssl rand -base64 32`.
 
+### Clients that cannot send headers
+
+Some MCP clients accept only a URL — claude.ai custom connectors, for one, take
+a URL and optional OAuth credentials with no field for `Authorization`. For
+those, the server also accepts the token as the last path segment:
+
+```
+POST https://<your-worker>.workers.dev/mcp/<MCP_URL_TOKEN>
+```
+
+`MCP_URL_TOKEN` is a **separate** secret from `MCP_AUTH_TOKEN`, and deliberately
+so: request paths end up in access logs, browser history, and referrers in a way
+headers do not. Keeping them apart means a leak through a URL does not
+compromise the header credential, and either can be rotated on its own. If
+`MCP_URL_TOKEN` is unset the route falls back to `MCP_AUTH_TOKEN`, which is
+convenient but gives up that separation.
+
+```bash
+npx wrangler secret put MCP_URL_TOKEN
+```
+
+Prefer the header route wherever the client supports it.
+
 ## Client configuration
 
 For Claude Code:
