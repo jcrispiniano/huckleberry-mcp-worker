@@ -1,0 +1,25 @@
+{
+  "name": "huckleberry-mcp-worker",
+  "version": "1.0.0",
+  "description": "Huckleberry baby-tracking MCP server running on Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "tail": "wrangler tail"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "agents": "^0.20.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260817.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.123.0"
+  },
+  "private": true
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "huckleberry-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  }
+  // Secrets are never stored here. Set them with:
+  //   npx wrangler secret put HUCKLEBERRY_EMAIL
+  //   npx wrangler secret put HUCKLEBERRY_PASSWORD
+  //   npx wrangler secret put MCP_AUTH_TOKEN
+  // and, optionally, HUCKLEBERRY_TIMEZONE.
+}

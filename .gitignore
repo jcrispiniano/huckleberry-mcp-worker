@@ -1,0 +1,12 @@
+node_modules/
+.wrangler/
+dist/
+
+# Secrets — never commit
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+*.log
+.DS_Store
+.mcp-token

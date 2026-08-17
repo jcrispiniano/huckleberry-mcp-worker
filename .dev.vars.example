@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local development (`npm run dev`).
+# .dev.vars is gitignored. In production these live as Worker secrets.
+HUCKLEBERRY_EMAIL="you@example.com"
+HUCKLEBERRY_PASSWORD="your-huckleberry-password"
+HUCKLEBERRY_TIMEZONE="America/Sao_Paulo"
+MCP_AUTH_TOKEN="generate-a-long-random-string"
