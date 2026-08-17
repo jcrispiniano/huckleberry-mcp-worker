@@ -16,7 +16,7 @@ client to log a nap.
 
 ## Tools
 
-All 23 tools from the Python server are implemented.
+All 23 tools from the Python server are implemented, plus `delete_record`.
 
 | Area | Tools |
 | --- | --- |
@@ -25,6 +25,10 @@ All 23 tools from the Python server are implemented.
 | Feeding | `log_breastfeeding`, `log_bottle_feeding`, `start_breastfeeding`, `pause_feeding`, `resume_feeding`, `switch_feeding_side`, `complete_feeding`, `cancel_feeding`, `get_feeding_history` |
 | Diaper | `log_diaper`, `get_diaper_history` |
 | Growth | `log_growth`, `get_latest_growth`, `get_growth_history` |
+| Records | `delete_record` |
+
+Every history tool reports each record's `interval_id`, which is what
+`delete_record` takes.
 
 ## Fixes relative to the Python server
 
@@ -139,10 +143,26 @@ Nested starts cannot be filtered server-side, so batch documents are fetched
 whole and filtered in the Worker. Records report which shape they came from via
 `is_multi_entry`.
 
+## Deleting records
+
+The Python server had no delete, and the received wisdom was that the backend
+did not allow one. It does: a `DELETE` on the document path returns 200. What
+was actually missing was the record's id, which the history tools never
+reported.
+
+So history tools now return `interval_id`, and `delete_record` removes the
+record it names. Batched entries — several records packed into one document
+under `data` — are addressed as `<documentId>#<entryKey>` and removed as a
+field of their parent.
+
+Deleting also repoints `prefs.last*` at the newest surviving record. The app
+reads those pointers directly, so a delete without the repoint leaves it showing
+a record that no longer exists.
+
 ## Known limitations
 
-- **No delete.** Neither the Huckleberry API surface used here nor the original
-  server can remove a record. Mistakes have to be deleted by hand in the app.
+- **Deletes are permanent.** There is no undo. Confirm with a history query
+  before calling `delete_record`.
 - **Solids are read-only.** `get_feeding_history` reports `mode: "solids"`
   entries, but there is no tool to create one.
 - **`start_sleep` does not guard against an already-running timer.** The Python

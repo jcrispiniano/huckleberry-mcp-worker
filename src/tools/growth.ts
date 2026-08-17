@@ -150,6 +150,7 @@ export function registerGrowthTools(server: McpServer, hb: Huckleberry) {
       );
 
       const result = entries.map((e) => ({
+        interval_id: e.__id,
         timestamp: timestampToLocalIso(e.start as number, hb.tz),
         weight: (e.weight as number) ?? null,
         height: (e.height as number) ?? null,

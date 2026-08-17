@@ -18,6 +18,7 @@ import {
   FirestoreClient,
   StructuredFilter,
   dbl,
+  escapeFieldPathSegment,
 } from "./firestore";
 import { dateToTimestamp, endDateToTimestamp, offsetMinutes } from "./tz";
 
@@ -159,7 +160,9 @@ export class Huckleberry {
       const data = doc.data;
       if (!data || typeof data !== "object") continue;
 
-      for (const entry of Object.values(data as Record<string, unknown>)) {
+      for (const [key, entry] of Object.entries(
+        data as Record<string, unknown>,
+      )) {
         if (!entry || typeof entry !== "object") continue;
 
         const e = entry as Record<string, unknown>;
@@ -167,7 +170,13 @@ export class Huckleberry {
         if (typeof entryStart !== "number") continue;
         if (entryStart < start || entryStart >= end) continue;
 
-        out.push({ ...e, __multi: true });
+        // A batched entry is addressed as "<documentId>#<entryKey>", since it
+        // is a field inside a document rather than a document of its own.
+        out.push({
+          ...e,
+          __id: `${doc.__id}#${key}`,
+          __multi: true,
+        });
       }
     }
 
@@ -189,7 +198,149 @@ export class Huckleberry {
     if (!doc) return null;
     return (doc.timer as Record<string, any>) ?? {};
   }
+
+  // --- deletion -------------------------------------------------------------
+
+  /**
+   * Permanently remove one record.
+   *
+   * `recordId` is the `interval_id` reported by the history tools. A batched
+   * entry carries the composite form "<documentId>#<entryKey>" and is removed
+   * as a field of its parent document rather than as a document.
+   */
+  async deleteRecord(
+    type: TrackerType,
+    childUid: string,
+    recordId: string,
+  ): Promise<void> {
+    const { collection, sub } = TRACKERS[type];
+
+    if (recordId.includes("#")) {
+      const [docId, entryKey] = recordId.split("#");
+      await this.db.updateDoc(`${collection}/${childUid}/${sub}/${docId}`, {
+        [`data.${escapeFieldPathSegment(entryKey)}`]: DELETE_FIELD,
+      });
+    } else {
+      await this.db.deleteDoc(`${collection}/${childUid}/${sub}/${recordId}`);
+    }
+
+    await this.refreshLastPointer(type, childUid);
+  }
+
+  /**
+   * Repoint `prefs.last*` at the newest surviving record.
+   *
+   * The app reads these fields directly, so deleting the most recent record
+   * without repointing leaves it displaying a record that no longer exists.
+   * Batched entries carry no top-level `start` and so cannot win this query;
+   * the pointer is a convenience, not the source of truth.
+   */
+  private async refreshLastPointer(
+    type: TrackerType,
+    childUid: string,
+  ): Promise<void> {
+    const { collection, sub } = TRACKERS[type];
+
+    const newest = await this.db.runQuery(
+      `${collection}/${childUid}`,
+      sub,
+      [],
+      "start",
+      { direction: "DESCENDING", limit: 1 },
+    );
+
+    const last = newest[0];
+    if (!last) return;
+
+    const path = `${collection}/${childUid}`;
+    const now = this.nowSec();
+    const start = Number(last.start);
+    const offset = dbl(Number(last.offset ?? offsetMinutes(this.tz)));
+
+    const stamps = {
+      "prefs.timestamp": { seconds: dbl(now) },
+      "prefs.local_timestamp": dbl(now),
+    };
+
+    if (type === "sleep") {
+      await this.db.updateDoc(path, {
+        "prefs.lastSleep": {
+          start,
+          duration: Number(last.duration ?? 0),
+          offset,
+        },
+        ...stamps,
+      });
+      return;
+    }
+
+    if (type === "diaper") {
+      await this.db.updateDoc(path, {
+        "prefs.lastDiaper": {
+          start: dbl(start),
+          mode: (last.mode as string) ?? "pee",
+          offset,
+        },
+        ...stamps,
+      });
+      return;
+    }
+
+    if (type === "growth") {
+      const { __id, ...entry } = last;
+      await this.db.updateDoc(path, {
+        "prefs.lastGrowthEntry": entry,
+        ...stamps,
+      });
+      return;
+    }
+
+    // feed: bottle and nursing keep separate pointers.
+    if (last.mode === "bottle") {
+      await this.db.updateDoc(path, {
+        "prefs.lastBottle": {
+          mode: "bottle",
+          start,
+          amount: dbl(Number(last.amount ?? 0)),
+          units: (last.units as string) ?? "oz",
+          bottleType: (last.bottleType as string) ?? "Formula",
+          offset,
+        },
+        ...stamps,
+      });
+      return;
+    }
+
+    const left = Number(last.leftDuration ?? 0);
+    const right = Number(last.rightDuration ?? 0);
+
+    await this.db.updateDoc(path, {
+      "prefs.lastNursing": {
+        mode: "breast",
+        start,
+        duration: dbl(left + right),
+        leftDuration: dbl(left),
+        rightDuration: dbl(right),
+        offset,
+      },
+      "prefs.lastSide": {
+        start,
+        lastSide: (last.lastSide as string) ?? "left",
+      },
+      ...stamps,
+    });
+  }
 }
+
+/** Where each record type lives in Firestore. */
+export const TRACKERS = {
+  sleep: { collection: "sleep", sub: "intervals" },
+  feed: { collection: "feed", sub: "intervals" },
+  diaper: { collection: "diaper", sub: "intervals" },
+  growth: { collection: "health", sub: "data" },
+} as const;
+
+export type TrackerType = keyof typeof TRACKERS;
 
 /** The all-false detail checkboxes the app attaches to every sleep record. */
 export function emptySleepDetails(): Record<string, unknown> {

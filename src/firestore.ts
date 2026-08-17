@@ -372,10 +372,13 @@ export class FirestoreClient {
     collectionId: string,
     filters: StructuredFilter[],
     orderByField?: string,
+    options: { direction?: "ASCENDING" | "DESCENDING"; limit?: number } = {},
   ): Promise<Record<string, unknown>[]> {
     const structuredQuery: Record<string, unknown> = {
       from: [{ collectionId }],
     };
+
+    if (options.limit != null) structuredQuery.limit = options.limit;
 
     if (filters.length === 1) {
       structuredQuery.where = {
@@ -402,7 +405,10 @@ export class FirestoreClient {
 
     if (orderByField) {
       structuredQuery.orderBy = [
-        { field: { fieldPath: orderByField }, direction: "ASCENDING" },
+        {
+          field: { fieldPath: orderByField },
+          direction: options.direction ?? "ASCENDING",
+        },
       ];
     }
 
@@ -424,13 +430,42 @@ export class FirestoreClient {
     }
 
     const rows = (await res.json()) as Array<{
-      document?: { fields?: Record<string, any> };
+      document?: { name?: string; fields?: Record<string, any> };
     }>;
 
     return rows
       .filter((r) => r.document)
-      .map((r) => decodeFields(r.document!.fields ?? {}));
+      .map((r) => ({
+        __id: r.document!.name?.split("/").pop() ?? "",
+        ...decodeFields(r.document!.fields ?? {}),
+      }));
   }
+
+  /** Permanently remove a document. */
+  async deleteDoc(path: string): Promise<void> {
+    await this.ensureAuth();
+
+    const res = await fetch(`${FIRESTORE_BASE}/${path}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${this.idToken}` },
+    });
+
+    if (!res.ok && res.status !== 404) {
+      throw new Error(
+        `Firestore delete failed (${res.status}): ${await res.text()}`,
+      );
+    }
+  }
+}
+
+/**
+ * Quote a field-path segment for an update mask. Firestore accepts bare
+ * segments only when they look like identifiers; batch entry keys such as
+ * "1786799661021-e949" start with a digit and must be backtick-quoted.
+ */
+export function escapeFieldPathSegment(segment: string): string {
+  if (/^[A-Za-z_][A-Za-z_0-9]*$/.test(segment)) return segment;
+  return `\`${segment.replace(/[\\`]/g, (m) => `\\${m}`)}\``;
 }
 
 /** 16 hex characters, matching the id format the app generates. */

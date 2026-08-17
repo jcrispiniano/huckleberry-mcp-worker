@@ -136,6 +136,7 @@ export function registerDiaperTools(server: McpServer, hb: Huckleberry) {
       );
 
       const result = intervals.map((i) => ({
+        interval_id: i.__id,
         timestamp: timestampToLocalIso(i.start as number, hb.tz),
         mode: (i.mode as string) ?? null,
         color: (i.color as string) ?? null,

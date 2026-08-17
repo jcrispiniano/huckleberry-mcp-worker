@@ -337,6 +337,7 @@ export function registerSleepTools(server: McpServer, hb: Huckleberry) {
         const duration = (i.duration as number) ?? 0;
 
         return {
+          interval_id: i.__id,
           start_time: timestampToLocalIso(startTs, hb.tz),
           // The Python server looked for an `end` field the backend never
           // writes, so end_time was always null. It is derived here.

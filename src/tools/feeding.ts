@@ -513,6 +513,7 @@ export function registerFeedingTools(server: McpServer, hb: Huckleberry) {
         const right = Number(i.rightDuration ?? 0);
 
         const row: Record<string, unknown> = {
+          interval_id: i.__id,
           start_time: timestampToLocalIso(i.start as number, hb.tz),
           mode: (i.mode as string) ?? "breast",
           left_duration_minutes: Math.floor(left / 60),

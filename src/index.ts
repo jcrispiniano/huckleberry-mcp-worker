@@ -19,6 +19,7 @@ import { registerSleepTools } from "./tools/sleep";
 import { registerFeedingTools } from "./tools/feeding";
 import { registerDiaperTools } from "./tools/diaper";
 import { registerGrowthTools } from "./tools/growth";
+import { registerRecordTools } from "./tools/records";
 
 export interface Env {
   HUCKLEBERRY_EMAIL: string;
@@ -73,6 +74,7 @@ function buildServer(env: Env): McpServer {
   registerFeedingTools(server, hb);
   registerDiaperTools(server, hb);
   registerGrowthTools(server, hb);
+  registerRecordTools(server, hb);
 
   return server;
 }
