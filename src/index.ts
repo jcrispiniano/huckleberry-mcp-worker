@@ -56,16 +56,15 @@ function tokensMatch(a: string, b: string): boolean {
 }
 
 function unauthorized(): Response {
-  return new Response(
-    JSON.stringify({ error: "unauthorized" }),
-    {
-      status: 401,
-      headers: {
-        "Content-Type": "application/json",
-        "WWW-Authenticate": 'Bearer realm="huckleberry-mcp"',
-      },
-    },
-  );
+  // Deliberately no WWW-Authenticate header. That header invites the client to
+  // negotiate authorization, which for MCP means discovering an OAuth server
+  // and registering a client. There is no OAuth here — the token is either
+  // presented correctly or it is not — so advertising a challenge only sends
+  // clients down a flow that cannot succeed.
+  return new Response(JSON.stringify({ error: "unauthorized" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 function buildServer(env: Env): McpServer {
@@ -122,6 +121,22 @@ export default {
     // token checks out.
     const pathToken = url.pathname.match(/^\/mcp\/(.+)$/)?.[1];
     let authenticated = false;
+
+    // Anything that is not an MCP route must answer 404, never 401.
+    //
+    // Clients probe for OAuth metadata (/.well-known/oauth-protected-resource,
+    // /.well-known/oauth-authorization-server, /register) before connecting. A
+    // 401 on those paths reads as "this server has an authorization server",
+    // which sends the client into dynamic client registration — a flow this
+    // server does not implement, so connecting fails with a registration
+    // error. A 404 tells the client there is no OAuth here, and it proceeds
+    // with the URL as given.
+    if (url.pathname !== "/mcp" && !pathToken) {
+      return new Response(JSON.stringify({ error: "not_found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     if (pathToken) {
       const expected = env.MCP_URL_TOKEN || env.MCP_AUTH_TOKEN;
