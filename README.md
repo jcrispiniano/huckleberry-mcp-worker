@@ -52,9 +52,11 @@ that the backend never writes. It is now derived from `start + duration`.
 **`birth_date` in `list_children` was always null.** The backend field is
 `birthdate`; the server read `birthDate`.
 
-`get_feeding_history` also now returns each record's `mode`, which distinguishes
-breastfeeding from bottle and solids entries. Without it, a solids record is
-indistinguishable from a zero-length nursing session.
+`get_feeding_history` also now returns each record's `mode`, plus the details
+that go with it: amount and type for bottles, food names and reactions for
+solids. Without them a solids record is an empty row, indistinguishable from a
+zero-length nursing session — which is exactly how a perfectly good record gets
+mistaken for a missing one.
 
 ## Setup
 
@@ -186,8 +188,8 @@ a record that no longer exists.
 
 - **Deletes are permanent.** There is no undo. Confirm with a history query
   before calling `delete_record`.
-- **Solids are read-only.** `get_feeding_history` reports `mode: "solids"`
-  entries, but there is no tool to create one.
+- **Solids are read-only.** `get_feeding_history` reports solids entries with
+  their food names and reactions, but there is no tool to create one.
 - **`start_sleep` does not guard against an already-running timer.** The Python
   server documented that it would fail in that case but never checked; the
   behaviour is preserved here rather than silently changed.

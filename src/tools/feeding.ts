@@ -527,6 +527,21 @@ export function registerFeedingTools(server: McpServer, hb: Huckleberry) {
           row.bottle_type = i.bottleType ?? null;
         }
 
+        // A solids record carries no duration, so without its food names it
+        // reads as an empty row and is easily mistaken for a missing entry.
+        if (i.mode === "solids") {
+          const foods = i.foods as Record<string, any> | undefined;
+          row.foods = foods
+            ? Object.values(foods).map(
+                (f) => f?.created_name ?? f?.name ?? "unknown",
+              )
+            : [];
+
+          const reactions = i.reactions as Record<string, any> | undefined;
+          row.reactions = reactions ? Object.keys(reactions) : [];
+          row.notes = (i.notes as string) || null;
+        }
+
         return row;
       });
 
